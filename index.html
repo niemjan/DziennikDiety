@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3f8f3a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Dziennik Diety</title>
+<style>
+:root{--bg:#f6f8f5;--card:#fff;--tx:#1d2a1f;--mut:#667366;--ac:#3f8f3a;--ac2:#e8f3e6;--bd:#d5ddd3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a15;--card:#1d261e;--tx:#e8efe8;--mut:#98a598;--ac:#6cc266;--ac2:#243a24;--bd:#334033}}
+:root[data-theme="dark"]{--bg:#141a15;--card:#1d261e;--tx:#e8efe8;--mut:#98a598;--ac:#6cc266;--ac2:#243a24;--bd:#334033}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:1.25rem;margin:0 0 4px;text-align:center}
+.sub{color:var(--mut);text-align:center;font-size:.9rem;margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;margin-bottom:10px}
+.dt{padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.dt label{font-weight:600}
+input[type=date]{font:inherit;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
+.wk{color:var(--mut);font-size:.9rem;width:100%}
+details summary{list-style:none;cursor:pointer;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600}
+details summary::-webkit-details-marker{display:none}
+summary .d{color:var(--mut);font-weight:400;margin-left:6px}
+summary .n{font-size:.8rem;background:var(--ac2);color:var(--ac);border-radius:99px;padding:2px 9px;font-weight:600}
+summary::after{content:"▾";color:var(--mut);margin-left:4px}
+details[open] summary::after{content:"▴"}
+details[open] summary{border-bottom:1px solid var(--bd)}
+.f{padding:6px 14px 14px}
+.f label{display:block;font-weight:600;font-size:.9rem;margin:12px 0 4px}
+textarea{width:100%;font:inherit;padding:9px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);resize:vertical;min-height:44px}
+textarea:focus,input:focus{outline:2px solid var(--ac);outline-offset:1px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+button{font:inherit;font-weight:600;padding:11px 16px;border-radius:10px;border:1px solid var(--ac);background:var(--ac);color:#fff;cursor:pointer}
+button.s{background:transparent;color:var(--ac)}
+#out{display:none}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:.85rem;background:var(--card)}
+th,td{border:1px solid var(--bd);padding:6px;vertical-align:top;text-align:left;white-space:pre-wrap;min-width:90px}
+th{background:var(--ac2)}
+td.r{font-weight:700;min-width:110px}
+.msg{color:var(--mut);font-size:.85rem}
+@media print{body{background:#fff;color:#000}#app,.bar,.sub{display:none!important}#out{display:block!important}.tw{overflow:visible}table{min-width:0;font-size:9pt;color:#000}th,td{border-color:#000}@page{size:landscape;margin:10mm}}
+</style>
+</head>
+<body>
+<main>
+<div id="app">
+<h1>Dzienniczek bieżącego notowania</h1>
+<p class="sub">Wpisz dolegliwości po posiłkach oraz odstępstwa od diety.</p>
+<div class="card dt">
+<label for="date">Data w tygodniu</label>
+<input type="date" id="date">
+<div class="wk" id="wk"></div>
+</div>
+<div id="days"></div>
+<div class="bar">
+<button id="gen">Generuj tabelę</button>
+<button class="s" id="clr">Wyczyść wszystko</button>
+</div>
+</div>
+<div id="out">
+<h1 id="ot">Dzienniczek bieżącego notowania</h1>
+<div class="tw"><table id="tb"></table></div>
+<div class="bar">
+<button id="cp">Kopiuj tabelę</button>
+<button class="s" id="pr">Drukuj / PDF</button>
+<button class="s" id="bk">Wróć do edycji</button>
+</div>
+<p class="msg" id="msg">Skopiowaną tabelę wklejysz do Worda lub Excela.</p>
+</div>
+</main>
+<script>
+var DN=["Poniedziałek","Wtorek","Środa","Czwartek","Piątek","Sobota","Niedziela"];
+var RW=[["sn","Śniadanie"],["ds","Drugie śniadanie"],["ob","Obiad"],["ko","Kolacja"],["pr","Przekąski"],["pl","Ilość płynów"],["ak","Aktywność fizyczna"],["sen","Ilość snu"],["wy","Wypróżnienia (częstotliwość i konsystencja)"]];
+var S={start:"",d:{}},K="dzienniczek-v1";
+try{var r=localStorage.getItem(K);if(r)S=JSON.parse(r)}catch(e){}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
+function p2(n){return(n<10?"0":"")+n}
+function mon(v){var a=v.split("-"),d=new Date(+a[0],a[1]-1,+a[2]);d.setDate(d.getDate()-((d.getDay()+6)%7));return d}
+function dayDate(i){if(!S.start)return null;var d=mon(S.start);d.setDate(d.getDate()+i);return d}
+function fmt(d,y){return d?p2(d.getDate())+"."+p2(d.getMonth()+1)+(y?"."+d.getFullYear():""):""}
+function cnt(i){var o=S.d[i]||{},n=0;for(var k in o)if(o[k]&&o[k].trim())n++;return n}
+var T=new Date(),today=(T.getDay()+6)%7;
+function build(){
+var h="";
+DN.forEach(function(n,i){
+h+='<details class="card" data-i="'+i+'"'+(i==today?" open":"")+'><summary><span>'+n+'<span class="d" id="dd'+i+'"></span></span><span class="n" id="n'+i+'"></span></summary><div class="f">';
+RW.forEach(function(r){h+='<label for="'+r[0]+i+'">'+r[1]+'</label><textarea id="'+r[0]+i+'" data-i="'+i+'" data-k="'+r[0]+'" rows="2">'+esc((S.d[i]||{})[r[0]]||"")+'</textarea>'});
+h+="</div></details>"});
+document.getElementById("days").innerHTML=h;
+document.querySelectorAll("textarea").forEach(function(t){t.addEventListener("input",function(){var i=t.dataset.i;(S.d[i]=S.d[i]||{})[t.dataset.k]=t.value;save();badge(i)})});
+refresh()}
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function badge(i){var c=cnt(i);document.getElementById("n"+i).textContent=c+"/9"}
+function refresh(){
+for(var i=0;i<7;i++){var d=dayDate(i);document.getElementById("dd"+i).textContent=d?" · "+fmt(d,true):"";badge(i)}
+var a=dayDate(0),b=dayDate(6);
+document.getElementById("wk").textContent=a?"Tydzień: "+fmt(a,true)+" – "+fmt(b,true):"Wybierz dowolną datę – dni tygodnia dopasują się automatycznie.";
+document.getElementById("date").value=S.start||""}
+document.getElementById("date").addEventListener("change",function(){S.start=this.value;save();refresh()});
+document.getElementById("clr").onclick=function(){if(confirm("Usunąć wszystkie wpisy i datę?")){S={start:"",d:{}};save();build()}};
+document.getElementById("gen").onclick=function(){
+var h="<thead><tr><th></th>";
+DN.forEach(function(n,i){var d=dayDate(i);h+="<th>"+n.toUpperCase()+(d?"<br>"+fmt(d,true):"")+"</th>"});
+h+="</tr></thead><tbody>";
+RW.forEach(function(r){h+='<tr><td class="r">'+r[1]+"</td>";for(var i=0;i<7;i++)h+="<td>"+esc((S.d[i]||{})[r[0]]||"")+"</td>";h+="</tr>"});
+document.getElementById("tb").innerHTML=h+"</tbody>";
+document.getElementById("app").style.display="none";
+document.getElementById("out").style.display="block";window.scrollTo(0,0)};
+document.getElementById("bk").onclick=function(){document.getElementById("out").style.display="none";document.getElementById("app").style.display="block"};
+document.getElementById("pr").onclick=function(){try{window.print()}catch(e){}};
+document.getElementById("cp").onclick=function(){
+var m=document.getElementById("msg"),t=document.getElementById("tb"),ok=false;
+try{var s=getSelection(),g=document.createRange();g.selectNode(t);s.removeAllRanges();s.addRange(g);ok=document.execCommand("copy");s.removeAllRanges()}catch(e){}
+m.textContent=ok?"Skopiowano. Wklej tabelę do Worda lub Excela.":"Nie udało się skopiować – zaznacz tabelę ręcznie i skopiuj."};
+build();
+if("serviceWorker" in navigator)window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});
+</script>
+</body>
+</html>
